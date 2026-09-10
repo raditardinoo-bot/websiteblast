@@ -1,0 +1,85 @@
+====================================================================
+DOKUMEN ONBOARDING TIM VPS / SERVER - SISTEM WA BLAST
+====================================================================
+
+Halo tim VPS! Selamat datang. 
+Dokumen ini dibuat agar kalian bisa langsung nyetel dengan arsitektur sistem yang sedang berjalan, apa saja masalah yang sudah/sedang kita hadapi, dan bagaimana cara kerja mesin ini di belakang layar.
+
+--------------------------------------------------------------------
+1. APA SISTEM INI? (OVERVIEW)
+--------------------------------------------------------------------
+Sistem ini adalah platform SaaS (Software as a Service) untuk distribusi pengiriman pesan WhatsApp massal (WA Blast). 
+Konsepnya unik: 
+- Admin mengunggah ribuan "Nomor Target" dan materi "Campaign".
+- User mendaftar, lalu menghubungkan HP WhatsApp mereka via scan QR Code.
+- Sistem akan menggunakan HP User tersebut sebagai "bot pengirim" secara latar belakang.
+- Setiap kali HP User berhasil mengirim 1 pesan ke Target, User akan mendapat komisi/upah (misal: Rp 50).
+- User bisa menarik komisi mereka (Withdrawal) jika sudah mencapai batas minimum.
+
+--------------------------------------------------------------------
+2. ARSITEKTUR & TOPOLOGI (TECH STACK)
+--------------------------------------------------------------------
+Sistem ini dipecah menjadi 3 komponen utama agar tidak saling membebani:
+
+A. FRONTEND (/frontend)
+   - Framework: Next.js (React) + TailwindCSS.
+   - Berfungsi sebagai Dasbor User dan Dasbor Admin (Monitoring, Manajemen User, dll).
+
+B. BACKEND API (/backend)
+   - Framework: Node.js + Express.js (Port 5000).
+   - Berfungsi menerima request dari Frontend (Login, CRUD Database, Tarik Dana).
+   - TIDAK menangani koneksi WebSocket WhatsApp secara langsung.
+
+C. BACKEND WORKER (/backend-worker)
+   - Framework: Node.js Standalone (`node worker.js`).
+   - INI ADALAH JANTUNG SISTEM. Tugasnya murni menahan koneksi WebSocket WhatsApp (menggunakan library `@whiskeysockets/baileys`).
+   - Mesin inilah yang menarik nomor dari antrean dan menembakkannya secara simultan.
+
+D. DATABASE & MESSAGE BROKER
+   - Database: SQLite (menggunakan Prisma ORM). Sangat ketat menggunakan Atomic Transactions untuk mencegah race condition (misal saat potong saldo).
+   - Broker: Redis Pub/Sub. Digunakan untuk komunikasi real-time antara [Backend API] dan [Backend Worker].
+
+--------------------------------------------------------------------
+3. ALUR KERJA MESIN BLAST (BAGAIMANA PESAN DIKIRIM?)
+--------------------------------------------------------------------
+- Mesin menggunakan `P-Queue` (antrean asinkron) untuk mengatur kelancaran eksekusi agar CPU tidak jebol.
+- Ada fungsi bernama `masterTick` yang berjalan setiap detik.
+- Setiap detik, `masterTick` akan mengumpulkan seluruh HP yang sedang CONNECTED.
+- Array daftar HP ini lalu di-kocok/shuffle secara acak (algoritma Fisher-Yates). Tujuannya agar pembagian tugas pengiriman merata dan tidak ada HP yang memonopoli bandwidth prosesor (mencegah Event Loop Starvation).
+- HP lalu mengambil nomor target, mem-parsing teks (menyisipkan spasi gaib anti-banned), lalu mengirimkan pesan via Baileys.
+
+--------------------------------------------------------------------
+4. MASALAH YANG KITA HADAPI & SOLUSI YANG SUDAH DITERAPKAN
+--------------------------------------------------------------------
+Beberapa hari ke belakang, kita menghadapi krisis kestabilan server di mana RAM membengkak hingga 6.5 GB dan Node.js crash. Berikut adalah anatomi masalah dan perbaikannya:
+
+[MASALAH 1]: Memory Leak (RAM Membengkak).
+[PENYEBAB]: Pesan WA nyangkut di udara (Deadlock) karena WA Server tidak merespon, ditambah Baileys terus menumpuk listener.
+[SOLUSI (SUDAH JALAN)]: 
+- Kita membungkus perintah `sendMessage` dengan `withTimeout(15000)`. Jika dalam 15 detik WA diam, proses diputus paksa dan dibuang dari RAM (Cure for Logic Leak).
+- Memasang `removeAllListeners()` di setiap event close socket.
+- Membatasi Reconnect Loop maksimal 5x percobaan, lalu mematikan socket jika terus ditolak oleh server Meta.
+
+[MASALAH 2]: Kecepatan Blast Tidak Rata (Fairness Issue).
+[PENYEBAB]: Iterasi loop `Object.keys()` statis membuat HP dengan urutan awal selalu dapat jatah event loop Node.js duluan.
+[SOLUSI (SUDAH JALAN)]: Memasukkan algoritma Fisher-Yates Shuffle di `masterTick`.
+
+[MASALAH 3]: Buta Kondisi Server.
+[SOLUSI (SUDAH JALAN)]: Telah dipasang `Memory Profiler` di Worker yang menyiarkan angka RSS RAM dan Heap Used setiap 30 detik ke Redis, lalu ditangkap dan ditampilkan secara visual di Dasbor Web Admin (Halaman Monitor).
+
+--------------------------------------------------------------------
+5. SOP PENGELOLAAN VPS (PENTING)
+--------------------------------------------------------------------
+1. Pastikan Redis (`redis-server`) selalu hidup di background. Tanpa Redis, API dan Worker tidak bisa ngobrol.
+2. Gunakan PM2 untuk manajemen proses:
+   - `pm2 start backend/server.js --name "wa-api"`
+   - `pm2 start backend-worker/worker.js --name "wa-worker"`
+   - `pm2 start npm --name "wa-frontend" -- run start --prefix frontend` (setelah npm run build)
+3. Jika developer (saya) melakukan PUSH kode dari GitHub:
+   - JANGAN LAKUKAN git pull sembarangan jika ada konflik. Gunakan:
+     `git fetch --all`
+     `git reset --hard origin/main`
+   - Setelah reset kode, rebuild frontend jika ada update UI: `cd frontend && npm run build`
+   - Restart seluruh ecosystem: `pm2 restart all`
+
+Silakan pelajari alur ini. Fokus utama tim VPS saat ini adalah memantau kelancaran RAM di Dashboard Monitor dan memastikan Redis / PM2 berjalan tanpa error. Selamat bekerja!

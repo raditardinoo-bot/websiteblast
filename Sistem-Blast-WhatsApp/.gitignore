@@ -1,0 +1,13 @@
+backend/sessions/
+backend/uploads/
+backend/logs/
+backend-worker/sessions/
+backend-worker/logs/
+backend-worker/temp/
+node_modules/
+.next/
+.env
+backend/auth_info/
+backend-worker/auth_info/
+**/creds.json
+**/keys.json

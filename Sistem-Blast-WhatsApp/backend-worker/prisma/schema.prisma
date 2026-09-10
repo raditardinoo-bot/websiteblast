@@ -1,0 +1,207 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int          @id @default(autoincrement())
+  name        String
+  username    String       @unique
+  email       String?      @unique
+  password    String
+  role        Role         @default(USER)
+  tier        UserTier     @default(REGULAR)
+  balance     Float        @default(0)
+  isActive    Boolean      @default(true)
+  
+  referralCode          String?  @unique
+  referredBy            Int?
+  referralEarnings      Float    @default(0)
+  referralMessageCount  Int      @default(0)
+  messagesSent          Int      @default(0)
+  referredUsers         User[]   @relation("UserReferrals")
+  referrer              User?    @relation("UserReferrals", fields: [referredBy], references: [id])
+  
+  // Data Pembayaran
+  bankType    String?      // 'BANK' atau 'EWALLET'
+  bankName    String?
+  bankAccount String?
+  bankOwner   String?
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  waSessions  WaSession[]
+  withdrawals Withdrawal[]
+  balanceHistories BalanceHistory[]
+
+  @@map("user")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum UserTier {
+  REGULAR
+  VIP
+}
+
+model WaSession {
+  id            Int            @id @default(autoincrement())
+  userId        Int
+  user          User           @relation(fields: [userId], references: [id])
+  sessionName   String
+  status        SessionStatus  @default(DISCONNECTED)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  messagesSent  Int            @default(0)
+  messagesFailed Int           @default(0)
+  targetNumbers TargetNumber[]
+
+  @@map("wasession")
+}
+
+enum SessionStatus {
+  CONNECTED
+  DISCONNECTED
+}
+
+model Campaign {
+  id              Int            @id @default(autoincrement())
+  name            String
+  messageTemplate String         @db.Text
+  mediaUrl        String?        @db.Text // Link foto/gambar
+  linkText        String?        // Teks tombol, misal: DAFTAR SEKARANG
+  linkUrl         String?        @db.Text // URL tujuan tombol
+  status          CampaignStatus @default(ACTIVE)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  targetNumbers   TargetNumber[]
+
+  @@map("campaign")
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+model AppSetting {
+  id                    Int      @id @default(1)
+  appName               String   @default("TRYWSBLAST")
+  logoUrl               String?  @db.Text
+  rewardPerMessage      Float    @default(50)
+  referralRewardRegular Float    @default(50)
+  referralRewardVip     Float    @default(200)
+  
+  minWithdrawalBank    Float    @default(50000)
+  minWithdrawalEwallet Float    @default(10000)
+  maxWithdrawalBank    Float    @default(5000000)
+  maxWithdrawalEwallet Float    @default(500000)
+  adminFeeBank         Float    @default(2500)
+  adminFeeEwallet      Float    @default(300)
+  
+  allowedBanks         String   @default("BCA,BNI,BRI,MANDIRI,BSI")
+  allowedEWallets      String   @default("DANA,OVO,GOPAY,LINKAJA,SHOPEEPAY")
+  
+  csType               String   @default("WA") // 'WA' atau 'LINK'
+  csValue              String   @default("628123456789")
+  
+  telegramBotToken     String?
+  telegramChatId       String?
+  
+  ruleProfileName      String   @default("Nama Pegawai - TRYWSBLAST")
+  ruleProfilePhotoUrl  String?  @db.Text
+  
+  popupEnabledDashboard Boolean  @default(true)
+  popupEnabledBlast     Boolean  @default(true)
+  popupType             String   @default("IMAGE") // 'IMAGE' atau 'VIDEO'
+  popupMediaUrls        String?  @db.Text
+  popupText             String?  @db.Text
+
+  bgThemeType           String   @default("DEFAULT") // 'DEFAULT' atau 'PHOTO'
+  bgImageUrl            String?  @db.Text
+  
+  shadowbanCheckEnabled Boolean  @default(false)
+
+  isMaintenance         Boolean  @default(false)
+  maintenanceKey        String?  @default("testing123")
+
+  updatedAt            DateTime @updatedAt
+
+  @@map("appsetting")
+}
+
+model TargetNumber {
+  id          Int          @id @default(autoincrement())
+  phone       String
+  status      TargetStatus @default(READY)
+  waSessionId Int?
+  waSession   WaSession?   @relation(fields: [waSessionId], references: [id])
+  senderNumber String?     // Menyimpan nomor permanen meskipun session dihapus
+  campaignId  Int?
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status, campaignId])
+  @@index([waSessionId])
+  
+  @@map("targetnumber")
+}
+
+enum TargetStatus {
+  READY
+  PROCESSING
+  TERPAKAI
+  SUKSES
+  GAGAL
+}
+
+model Withdrawal {
+  id          Int              @id @default(autoincrement())
+  userId      Int
+  user        User             @relation(fields: [userId], references: [id])
+  amount      Float
+  
+  bankType    String?
+  bankName    String?
+  bankAccount String?
+  bankOwner   String?
+  
+  status      WithdrawalStatus @default(PENDING)
+  rejectReason String?         @db.Text
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("withdrawal")
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model BalanceHistory {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String   // e.g. 'REWARD', 'WITHDRAWAL', 'REFUND', 'MANUAL_EDIT'
+  amount      Float
+  oldBalance  Float
+  newBalance  Float
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@map("balancehistory")
+}

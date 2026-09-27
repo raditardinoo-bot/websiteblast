@@ -1,0 +1,17 @@
+# RINGKASAN UMUM: SISTEM WA BLAST MULTI-DEVICE
+
+Sistem ini adalah sebuah platform Web Application (SaaS) untuk melakukan pengiriman pesan WhatsApp massal (Blast) secara otomatis menggunakan banyak nomor pengirim sekaligus. Platform ini dirancang agar mudah digunakan oleh berbagai pengguna, baik pemula maupun ahli.
+
+## FITUR-FITUR UTAMA WEB:
+
+1. **Multi-User & Multi-Device:** Setiap pengguna bisa mendaftar akun, masuk (login), dan menautkan banyak nomor WhatsApp (Mesin) ke dalam satu akun melalui fitur Scan QR Code atau sekadar memasukkan Kode Tautan (Pairing Code).
+
+2. **Kendali Kecepatan & Kuota:** Pengguna dapat mengatur kecepatan pengiriman (Fast, Normal, Slow) dan membatasi jumlah kuota pesan (Limit Pesan) yang ingin dikirim oleh tiap-tiap mesin agar sesuai dengan kapasitas perangkat masing-masing.
+
+3. **Manajemen Kampanye (Campaign):** Admin dapat membuat teks pesan yang dinamis dan fleksibel. Terdapat tombol cepat (*Quick Insert*) untuk memasukkan parameter seperti {{name}}, yang secara pintar akan memanggil target dengan nama atau sapaan acak (Kak, Bunda, Gan, dll), dan {{phone}} untuk menyisipkan nomor tujuan.
+
+4. **Pesan Interaktif (Tombol):** Mendukung pengiriman pesan modern yang canggih berisi teks, gambar, serta tombol interaktif (Tombol Tautan Web / CTA) yang dikalibrasi agar berfungsi lancar dan terlihat rapi di semua HP Android maupun iOS.
+
+5. **Sistem Saldo & Tarik Dana (Reward):** Ini adalah fitur yang menguntungkan pengguna. Setiap kali mesin / nomor pengguna berhasil mengirim pesan ke target, pengguna akan mendapatkan uang imbalan (saldo rupiah). Saldo ini nantinya bisa ditarik ke rekening bank (Withdraw).
+
+6. **Dashboard Mewah & Real-time:** Memiliki antarmuka (UI) super elegan dengan mode gelap (Dark Mode) modern. Pengguna bisa memantau statistik pengiriman sukses, gagal, pendapatan rupiah, serta indikator timer hitung mundur (countdown) pergerakan mesin secara langsung di layar HP (sangat ramah seluler) maupun Komputer.
